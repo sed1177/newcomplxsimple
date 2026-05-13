@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ComplxSimple
 
-## Getting Started
+Interactive CS learning platform for Cassandra Carter's students.
+Built with Next.js 16, Convex, Clerk, Tailwind CSS, and Resend.
 
-First, run the development server:
+## Features
+
+- **4 Learning Tracks**: Hardware, AI, Cybersecurity, HTML
+- **Interactive Lessons**: Content, quizzes, and a drag-and-drop PC parts game
+- **Progress Tracking**: % completion per track, scores per lesson
+- **Teacher Dashboard**: Student scores, class calendar, email sending
+- **Dark / Light Mode**: System preference + manual toggle
+- **Responsive**: Mobile, tablet, and desktop
+
+---
+
+## Quick Setup
+
+### 1. Clone & install
+
+```bash
+npm install
+```
+
+### 2. Set up Convex
+
+```bash
+npx convex dev
+```
+
+This will open a browser to log in to Convex and create a deployment.
+Copy the `NEXT_PUBLIC_CONVEX_URL` it prints into `.env.local`.
+
+### 3. Set up Clerk
+
+1. Go to [dashboard.clerk.com](https://dashboard.clerk.com) → Create Application
+2. Copy **Publishable Key** and **Secret Key** to `.env.local`
+3. Go to **JWT Templates** → **New template** → choose **Convex**
+4. Copy the **Issuer URL** (e.g. `https://xxx.clerk.accounts.dev`)
+5. In your **Convex dashboard** → Settings → Environment Variables, add:
+   - `CLERK_JWT_ISSUER_DOMAIN` = the Issuer URL from step 4
+   - `TEACHER_EMAIL` = Cassandra's exact sign-up email
+   - `RESEND_API_KEY` = your Resend key
+   - `FROM_EMAIL` = your verified sender email
+
+### 4. Set up Resend (Email)
+
+1. Go to [resend.com](https://resend.com) → Create API key
+2. Add to `.env.local` and to Convex dashboard environment variables
+
+### 5. Create `.env.local`
+
+```bash
+cp .env.example .env.local
+# Fill in all values
+```
+
+### 6. Seed initial content
+
+After `npx convex dev` is running, in the Convex dashboard:
+- Go to **Functions** → `seed.seedAll` → **Run**
+
+This creates all 4 tracks and their lessons.
+
+### 7. Start the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Teacher Access
 
-## Learn More
+Whoever signs up with the email set in `TEACHER_EMAIL` (env var) automatically gets the teacher role and can access `/teacher/dashboard`.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Next.js dev server |
+| `npx convex dev` | Start Convex dev server (run in separate terminal) |
+| `npm run build` | Build for production |
+| `npm run lint` | Run ESLint |

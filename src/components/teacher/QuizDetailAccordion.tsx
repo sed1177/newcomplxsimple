@@ -1,0 +1,119 @@
+"use client";
+
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
+import { CheckCircle, XCircle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
+import { formatDate } from "@/lib/utils";
+
+interface Props {
+  studentId: Id<"users">;
+  lessonId: Id<"lessons">;
+  lessonTitle: string;
+  trackColor: string;
+}
+
+function QuizDetailBody({ studentId, lessonId }: { studentId: Id<"users">; lessonId: Id<"lessons"> }) {
+  const detail = useQuery(api.attempts.getStudentQuizDetail, { studentId, lessonId });
+
+  if (!detail) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />)}
+      </div>
+    );
+  }
+
+  if (!("questions" in detail) || detail.questions.length === 0) {
+    return <p className="text-sm" style={{ color: "var(--text-muted)" }}>No quiz data available for this lesson.</p>;
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3 text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+        {detail.completedAt && <span>Completed {formatDate(detail.completedAt)}</span>}
+        {(detail.totalAttempts ?? 0) > 1 && <span>· {detail.totalAttempts} attempts (showing best)</span>}
+        </div>
+        {detail.questions.map((q, i) => {
+        const hasDetail = "correct" in q;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const enriched = hasDetail ? (q as any) : null;
+        const correct: boolean = enriched?.correct ?? false;
+        const studentAnswer: number | null = enriched?.studentAnswer ?? null;
+        return (
+        <div
+          key={i}
+          className="rounded-xl p-4 space-y-3"
+          style={{
+            background: correct ? "#0EA5E910" : "#EF444410",
+            border: `1px solid ${correct ? "#0EA5E933" : "#EF444433"}`,
+          }}
+        >
+          <div className="flex items-start gap-2">
+            {correct
+              ? <CheckCircle size={15} className="flex-shrink-0 mt-0.5" style={{ color: "#0EA5E9" }} />
+              : <XCircle    size={15} className="flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />
+            }
+            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+              Q{i + 1}. {q.question}
+            </p>
+          </div>
+
+          <div className="pl-5 space-y-1.5">
+            {q.options.map((opt, oi) => {
+              const isCorrect = oi === q.correctIndex;
+              const isStudentAnswer = oi === studentAnswer;
+              let bg = "transparent";
+              let color = "var(--text-muted)";
+              let label: string | null = null;
+              if (isCorrect && isStudentAnswer) { bg = "#0EA5E920"; color = "#0EA5E9"; label = "✓ Correct"; }
+              else if (isCorrect)              { bg = "#0EA5E910"; color = "#0EA5E9"; label = "Correct answer"; }
+              else if (isStudentAnswer)        { bg = "#EF444420"; color = "#EF4444"; label = "Student chose"; }
+              return (
+                <div key={oi} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: bg }}>
+                  <span className="text-xs font-bold w-4 flex-shrink-0" style={{ color }}>
+                    {String.fromCharCode(65 + oi)}
+                  </span>
+                  <span className="text-xs flex-1" style={{ color: color !== "var(--text-muted)" ? color : "var(--text)" }}>{opt}</span>
+                  {label && <span className="text-xs font-semibold flex-shrink-0" style={{ color }}>{label}</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {!correct && q.explanation && (
+            <p className="pl-5 text-xs italic" style={{ color: "var(--text-muted)" }}>💡 {q.explanation}</p>
+          )}
+        </div>
+      );
+    })}
+    </>
+  );
+}
+
+export function QuizDetailAccordion({ studentId, lessonId, lessonTitle, trackColor }: Props) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left transition-opacity hover:opacity-80"
+        style={{ background: "var(--surface-2)" }}
+      >
+        <div className="flex items-center gap-2">
+          <HelpCircle size={14} style={{ color: trackColor }} />
+          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>{lessonTitle}</span>
+        </div>
+        {open ? <ChevronUp size={14} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />}
+      </button>
+
+      {open && (
+        <div className="p-4 space-y-3" style={{ background: "var(--surface)" }}>
+          <QuizDetailBody studentId={studentId} lessonId={lessonId} />
+        </div>
+      )}
+    </div>
+  );
+}
