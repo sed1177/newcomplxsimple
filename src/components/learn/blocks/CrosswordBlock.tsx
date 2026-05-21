@@ -189,6 +189,7 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
 
   const handleCellClick = useCallback((r: number, c: number) => {
     if (submitted) return;
+    if (correctCellKeys.has(`${r},${c}`)) return; // locked correct cell
     const cell = grid[r]?.[c];
     if (!cell) return;
     tableRef.current?.focus();
@@ -240,6 +241,7 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
     }
     if (e.key.match(/^[a-zA-Z]$/)) {
       e.preventDefault();
+      if (correctCellKeys.has(`${r},${c}`)) return; // don't overwrite correct cells
       setInput((p) => ({ ...p, [`${r},${c}`]: e.key.toUpperCase() }));
       const nr = r + DR, nc = c + DC;
       if (activeWordKeys.has(`${nr},${nc}`)) setActiveCell({ r: nr, c: nc });
@@ -260,8 +262,26 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
     onComplete(score, placements.length);
   }
 
+  // Which cells belong to a correct word — keep them locked green on retry
+  const correctCellKeys = useMemo(() => {
+    if (!submitted) return new Set<string>();
+    const keys = new Set<string>();
+    placements.forEach((p, idx) => {
+      if (!wordResults[idx]) return;
+      const DR = p.dir === "down" ? 1 : 0, DC = p.dir === "across" ? 1 : 0;
+      for (let i = 0; i < p.word.length; i++)
+        keys.add(`${p.row + DR * i},${p.col + DC * i}`);
+    });
+    return keys;
+  }, [submitted, wordResults, placements]);
+
   function handleRedo() {
-    setInput({});
+    // Keep letters from correct words, clear everything else
+    setInput((prev) => {
+      const next: Record<string, string> = {};
+      correctCellKeys.forEach((k) => { if (prev[k]) next[k] = prev[k]; });
+      return next;
+    });
     setSubmitted(false);
     setWordResults([]);
     setActiveCell(null);
@@ -350,6 +370,7 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
                     }
 
                     // Colour logic
+                    const isLockedCorrect = correctCellKeys.has(key);
                     let bg = "#ffffff";
                     let letterToShow = entered;
                     let letterColor = "#111827";
@@ -361,6 +382,11 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
                       letterToShow = entered || "_";
                       letterColor = letterOk ? "#065F46" : "#991B1B";
                       showCorrect = !letterOk;
+                    } else if (isLockedCorrect) {
+                      // Correct on a previous attempt — stay green and show the letter
+                      bg = "#D1FAE5";
+                      letterToShow = entered;
+                      letterColor = "#065F46";
                     } else if (isActive) {
                       bg = "#93C5FD";
                     } else if (inWord) {
