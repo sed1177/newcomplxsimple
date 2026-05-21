@@ -4,18 +4,20 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { use } from "react";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Gamepad2, HelpCircle, CheckCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, Gamepad2, HelpCircle, CheckCircle, PenLine } from "lucide-react";
 
 const LESSON_TYPE_ICONS = {
-  content: BookOpen,
-  quiz: HelpCircle,
-  game: Gamepad2,
+  content:   BookOpen,
+  quiz:      HelpCircle,
+  game:      Gamepad2,
+  mandatory: PenLine,
 };
 
 const LESSON_TYPE_LABELS = {
-  content: "Lesson",
-  quiz: "Quiz",
-  game: "Game",
+  content:   "Lesson",
+  quiz:      "Quiz",
+  game:      "Game",
+  mandatory: "Mandatory Work",
 };
 
 export default function TrackPage({ params }: { params: Promise<{ track: string }> }) {
