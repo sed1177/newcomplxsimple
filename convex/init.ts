@@ -117,6 +117,65 @@ export const ensureSeeded = mutation({
 });
 
 /**
+ * Adds the Hardware Fundamentals crossword lesson if it doesn't already exist.
+ * Safe to call multiple times.
+ */
+export const addHardwareCrossword = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const track = await ctx.db
+      .query("tracks")
+      .withIndex("by_slug", (q) => q.eq("slug", "hardware"))
+      .unique();
+    if (!track) return;
+
+    const existing = await ctx.db
+      .query("lessons")
+      .withIndex("by_track", (q) => q.eq("trackId", track._id))
+      .collect();
+    if (existing.some((l) => l.title === "Hardware Crossword Challenge")) return;
+
+    const maxOrder = existing.reduce((m, l) => Math.max(m, l.order), 0);
+
+    await ctx.db.insert("lessons", {
+      trackId: track._id,
+      title: "Hardware Crossword Challenge",
+      type: "content",
+      order: maxOrder + 1,
+      published: true,
+      content: JSON.stringify({
+        blocks: [
+          {
+            type: "heading",
+            content: "Hardware Fundamentals Crossword",
+          },
+          {
+            type: "paragraph",
+            content:
+              "Use the clues below to fill in the crossword. Click a cell to select it, type your answer, and press Submit when done. This activity is graded — you only get one attempt, so read carefully!",
+          },
+          {
+            type: "crossword",
+            pairs: [
+              { term: "CPU",   definition: "The brain of the computer — executes all instructions" },
+              { term: "GPU",   definition: "Handles graphics rendering and display output" },
+              { term: "RAM",   definition: "Fast temporary memory used while programs are running" },
+              { term: "ROM",   definition: "Read-only memory that permanently stores firmware" },
+              { term: "PSU",   definition: "Converts AC electricity to DC power for all components" },
+              { term: "SSD",   definition: "Solid-state storage drive with no moving parts" },
+              { term: "PORT",  definition: "A physical connector on a computer for external devices" },
+              { term: "CORE",  definition: "An independent processing unit inside a CPU" },
+              { term: "CACHE", definition: "Ultra-fast memory built directly inside the CPU chip" },
+              { term: "BIOS",  definition: "Firmware that initialises hardware and boots the OS" },
+            ],
+          },
+        ],
+      }),
+    });
+  },
+});
+
+/**
  * Adds the Linux Mastery track if it doesn't exist yet.
  * Safe to call multiple times — exits immediately if the track already exists.
  */

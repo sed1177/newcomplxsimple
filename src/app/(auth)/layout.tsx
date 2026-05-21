@@ -57,6 +57,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const storeUser = useMutation(api.users.store);
   const ensureSeeded = useMutation(api.init.ensureSeeded);
   const addLinuxTrack = useMutation(api.init.addLinuxTrack);
+  const addHardwareCrossword = useMutation(api.init.addHardwareCrossword);
   const profile = useQuery(api.users.getMyProfile);
 
   useEffect(() => {
@@ -69,8 +70,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       });
       ensureSeeded();
       addLinuxTrack();
+      addHardwareCrossword();
     }
-  }, [isLoaded, user, storeUser, ensureSeeded, addLinuxTrack]);
+  }, [isLoaded, user, storeUser, ensureSeeded, addLinuxTrack, addHardwareCrossword]);
 
   // Gate: Clerk not loaded yet
   if (!isLoaded) {

@@ -7,6 +7,7 @@ import { FlashcardBlock } from "./blocks/FlashcardBlock";
 import { FillBlankBlock } from "./blocks/FillBlankBlock";
 import { QuizBlock } from "./blocks/QuizBlock";
 import { MatchBlock } from "./blocks/MatchBlock";
+import { CrosswordBlock } from "./blocks/CrosswordBlock";
 import { PlaygroundBlock } from "./blocks/PlaygroundBlock";
 import { useSoundFeedback } from "@/lib/useSoundFeedback";
 
@@ -15,6 +16,7 @@ interface BlockCompletion { score: number; max: number }
 interface Props {
   contentJson: string;
   onComplete: (score: number, maxScore: number) => void;
+  locked?: boolean;
 }
 
 /** Renders a single static block (heading, paragraph, code, list). */
@@ -24,7 +26,7 @@ function StaticBlock({ block }: { block: LessonBlock }) {
   return <LessonContent contentJson={fakeJson} />;
 }
 
-export function LessonRenderer({ contentJson, onComplete }: Props) {
+export function LessonRenderer({ contentJson, onComplete, locked = false }: Props) {
   const blocks = useMemo(() => parseBlocks(contentJson), [contentJson]);
   const { playComplete } = useSoundFeedback();
 
@@ -60,6 +62,27 @@ export function LessonRenderer({ contentJson, onComplete }: Props) {
   function handleComplete() {
     playComplete();
     onComplete(totalScore, totalMax);
+  }
+
+  // If already completed and has graded interactive content, show locked state
+  if (locked && interactiveIndices.length > 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        {blocks.filter((b) => !isInteractive(b)).map((block, i) => (
+          <StaticBlock key={i} block={block} />
+        ))}
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+        >
+          <div className="text-4xl mb-3">🔒</div>
+          <p className="text-lg font-bold mb-1" style={{ color: "var(--text)" }}>Already Submitted</p>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            This graded activity can only be completed once. Your score has been recorded.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -99,6 +122,9 @@ export function LessonRenderer({ contentJson, onComplete }: Props) {
             )}
             {block.type === "match" && (
               <MatchBlock pairs={block.pairs} onComplete={completer} />
+            )}
+            {block.type === "crossword" && (
+              <CrosswordBlock pairs={block.pairs} onComplete={completer} />
             )}
             {block.type === "playground" && (
               <PlaygroundBlock language={block.language} code={block.code} onComplete={completer} />
