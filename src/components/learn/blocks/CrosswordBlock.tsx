@@ -167,6 +167,19 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
   const [activeDir, setActiveDir]   = useState<"across" | "down">("across");
   const [submitted, setSubmitted]   = useState(false);
   const [wordResults, setWordResults] = useState<boolean[]>([]);
+
+  // Live detection: which word indices are already fully & correctly filled
+  const liveCorrect = useMemo(() => {
+    const correct = new Set<number>();
+    placements.forEach((p, idx) => {
+      const DR = p.dir === "down" ? 1 : 0, DC = p.dir === "across" ? 1 : 0;
+      const allOk = p.word.split("").every((letter, i) =>
+        (input[`${p.row + DR * i},${p.col + DC * i}`] ?? "") === letter
+      );
+      if (allOk) correct.add(idx);
+    });
+    return correct;
+  }, [input, placements]);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const activePlacement = useMemo(() => {
@@ -262,18 +275,21 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
     onComplete(score, placements.length);
   }
 
-  // Which cells belong to a correct word — keep them locked green on retry
+  // Cells locked green: either confirmed correct after submit, or live-detected correct
   const correctCellKeys = useMemo(() => {
-    if (!submitted) return new Set<string>();
     const keys = new Set<string>();
-    placements.forEach((p, idx) => {
-      if (!wordResults[idx]) return;
+    const correctIndices = submitted
+      ? wordResults.map((ok, i) => ok ? i : -1).filter((i) => i >= 0)
+      : [...liveCorrect];
+    correctIndices.forEach((idx) => {
+      const p = placements[idx];
+      if (!p) return;
       const DR = p.dir === "down" ? 1 : 0, DC = p.dir === "across" ? 1 : 0;
       for (let i = 0; i < p.word.length; i++)
         keys.add(`${p.row + DR * i},${p.col + DC * i}`);
     });
     return keys;
-  }, [submitted, wordResults, placements]);
+  }, [submitted, wordResults, liveCorrect, placements]);
 
   function handleRedo() {
     // Keep letters from correct words, clear everything else
@@ -464,16 +480,17 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
             {acrossClues.map((p) => {
               const idx = placements.indexOf(p);
               const isActive = activePlacement === p && activeDir === "across";
+              const isLive = liveCorrect.has(idx);
               const res = submitted ? wordResults[idx] : null;
               return (
                 <div
                   key={p.num}
-                  onClick={() => { if (!submitted) { setActiveCell({ r: p.row, c: p.col }); setActiveDir("across"); tableRef.current?.focus(); } }}
+                  onClick={() => { if (!submitted && !isLive) { setActiveCell({ r: p.row, c: p.col }); setActiveDir("across"); tableRef.current?.focus(); } }}
                   className="flex items-start gap-2 px-2 py-1.5 rounded-lg text-sm mb-1 transition-colors"
-                  style={{ background: isActive ? "var(--surface-2)" : "transparent", cursor: submitted ? "default" : "pointer", color: "var(--text-muted)" }}
+                  style={{ background: isActive ? "var(--surface-2)" : "transparent", cursor: (submitted || isLive) ? "default" : "pointer", color: "var(--text-muted)" }}
                 >
-                  {res === true  && <CheckCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#10B981" }} />}
-                  {res === false && <XCircle     size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />}
+                  {(res === true || isLive)  && <CheckCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#10B981" }} />}
+                  {res === false && !isLive  && <XCircle     size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />}
                   <span>
                     <strong style={{ color: "var(--text)" }}>{p.num}.</strong>{" "}
                     {p.def}
@@ -493,16 +510,17 @@ export function CrosswordBlock({ pairs, onComplete }: Props) {
             {downClues.map((p) => {
               const idx = placements.indexOf(p);
               const isActive = activePlacement === p && activeDir === "down";
+              const isLive = liveCorrect.has(idx);
               const res = submitted ? wordResults[idx] : null;
               return (
                 <div
                   key={p.num}
-                  onClick={() => { if (!submitted) { setActiveCell({ r: p.row, c: p.col }); setActiveDir("down"); tableRef.current?.focus(); } }}
+                  onClick={() => { if (!submitted && !isLive) { setActiveCell({ r: p.row, c: p.col }); setActiveDir("down"); tableRef.current?.focus(); } }}
                   className="flex items-start gap-2 px-2 py-1.5 rounded-lg text-sm mb-1 transition-colors"
-                  style={{ background: isActive ? "var(--surface-2)" : "transparent", cursor: submitted ? "default" : "pointer", color: "var(--text-muted)" }}
+                  style={{ background: isActive ? "var(--surface-2)" : "transparent", cursor: (submitted || isLive) ? "default" : "pointer", color: "var(--text-muted)" }}
                 >
-                  {res === true  && <CheckCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#10B981" }} />}
-                  {res === false && <XCircle     size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />}
+                  {(res === true || isLive)  && <CheckCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#10B981" }} />}
+                  {res === false && !isLive  && <XCircle     size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />}
                   <span>
                     <strong style={{ color: "var(--text)" }}>{p.num}.</strong>{" "}
                     {p.def}

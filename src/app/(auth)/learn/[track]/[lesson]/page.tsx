@@ -45,6 +45,7 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
   const pct = result ? Math.round((result.score / result.max) * 100) : 0;
   const isLegacyQuiz = lesson.type === "quiz";
   const isLegacyGame = lesson.type === "game";
+  const isContentBased = lesson.type === "content" || lesson.type === "mandatory";
 
   const alreadyCompleted = bestAttempt !== undefined && bestAttempt !== null;
 
@@ -58,8 +59,8 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs px-3 py-1 rounded-full font-medium capitalize" style={{ background: `${trackData.color}22`, color: trackData.color }}>
-            {lesson.type}
+          <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: `${trackData.color}22`, color: trackData.color }}>
+            {lesson.type === "mandatory" ? "Mandatory Work" : lesson.type.charAt(0).toUpperCase() + lesson.type.slice(1)}
           </span>
           {alreadyCompleted && (
             <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: "#0EA5E922", color: "#0EA5E9" }}>
@@ -92,7 +93,7 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
       {!result && (
         <div className="card p-8 mb-6">
           {/* Content + block-based lessons (crossword, quiz blocks, etc.) */}
-          {!isLegacyQuiz && !isLegacyGame && (
+          {isContentBased && (
             <LessonRenderer
               contentJson={lesson.content}
               onComplete={handleComplete}

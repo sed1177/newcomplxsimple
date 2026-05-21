@@ -117,6 +117,97 @@ export const ensureSeeded = mutation({
 });
 
 /**
+ * Makes Linux Mastery order:1 and shifts other tracks up.
+ * Safe to call multiple times.
+ */
+export const reorderTracksLinuxFirst = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tracks = await ctx.db.query("tracks").collect();
+    const slugOrder: Record<string, number> = {
+      linux: 1, hardware: 2, ai: 3, cybersecurity: 4, html: 5,
+    };
+    await Promise.all(
+      tracks.map((t) => {
+        const newOrder = slugOrder[t.slug] ?? t.order + 10;
+        if (t.order !== newOrder) return ctx.db.patch(t._id, { order: newOrder });
+      })
+    );
+  },
+});
+
+/**
+ * Patches existing crossword lessons to type "mandatory".
+ */
+export const patchCrosswordsToMandatory = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const lessons = await ctx.db.query("lessons").collect();
+    await Promise.all(
+      lessons
+        .filter((l) => l.title.toLowerCase().includes("crossword"))
+        .map((l) => ctx.db.patch(l._id, { type: "mandatory" as const }))
+    );
+  },
+});
+
+/**
+ * Adds the Linux Mastery crossword lesson.
+ */
+export const addLinuxCrossword = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const track = await ctx.db
+      .query("tracks")
+      .withIndex("by_slug", (q) => q.eq("slug", "linux"))
+      .unique();
+    if (!track) return;
+
+    const existing = await ctx.db
+      .query("lessons")
+      .withIndex("by_track", (q) => q.eq("trackId", track._id))
+      .collect();
+
+    const maxOrder = existing.reduce((m, l) => Math.max(m, l.order), 0);
+
+    const crosswordContent = JSON.stringify({
+      blocks: [
+        { type: "heading", content: "Linux Mastery Crossword" },
+        {
+          type: "paragraph",
+          content:
+            "Five essential Linux concepts are hidden in this grid. Each clue shows the letter count in parentheses. You can retry as many times as you need — correct words lock in green automatically!",
+        },
+        {
+          type: "crossword",
+          pairs: [
+            { term: "KERNEL",     definition: "The core of Linux that manages hardware and system processes" },
+            { term: "TERMINAL",   definition: "The application that runs a shell and accepts commands" },
+            { term: "PERMISSION", definition: "Read, write, or execute access granted to users on a file" },
+            { term: "DIRECTORY",  definition: "A folder in the Linux file system that contains files" },
+            { term: "PIPELINE",   definition: "Chaining commands together using the | (pipe) operator" },
+          ],
+        },
+      ],
+    });
+
+    const existing_crossword = existing.find((l) => l.title === "Linux Mastery Crossword Challenge");
+    if (existing_crossword) {
+      await ctx.db.patch(existing_crossword._id, { content: crosswordContent, type: "mandatory" });
+    } else {
+      await ctx.db.insert("lessons", {
+        trackId: track._id,
+        title: "Linux Mastery Crossword Challenge",
+        type: "mandatory",
+        order: maxOrder + 1,
+        published: true,
+        content: crosswordContent,
+      });
+    }
+  },
+});
+
+/**
  * Adds the Hardware Fundamentals crossword lesson if it doesn't already exist.
  * Safe to call multiple times.
  */
@@ -163,12 +254,12 @@ export const addHardwareCrossword = mutation({
     // Update if already exists, otherwise insert
     const existing_crossword = existing.find((l) => l.title === "Hardware Crossword Challenge");
     if (existing_crossword) {
-      await ctx.db.patch(existing_crossword._id, { content: crosswordContent });
+      await ctx.db.patch(existing_crossword._id, { content: crosswordContent, type: "mandatory" });
     } else {
       await ctx.db.insert("lessons", {
         trackId: track._id,
         title: "Hardware Crossword Challenge",
-        type: "content",
+        type: "mandatory",
         order: maxOrder + 1,
         published: true,
         content: crosswordContent,
@@ -219,12 +310,12 @@ export const addAICrossword = mutation({
 
     const existing_crossword = existing.find((l) => l.title === "AI Concepts Crossword Challenge");
     if (existing_crossword) {
-      await ctx.db.patch(existing_crossword._id, { content: crosswordContent });
+      await ctx.db.patch(existing_crossword._id, { content: crosswordContent, type: "mandatory" });
     } else {
       await ctx.db.insert("lessons", {
         trackId: track._id,
         title: "AI Concepts Crossword Challenge",
-        type: "content",
+        type: "mandatory",
         order: maxOrder + 1,
         published: true,
         content: crosswordContent,

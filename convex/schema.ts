@@ -35,7 +35,7 @@ export default defineSchema({
     trackId: v.id("tracks"),
     title: v.string(),
     content: v.string(),
-    type: v.union(v.literal("content"), v.literal("quiz"), v.literal("game")),
+    type: v.union(v.literal("content"), v.literal("quiz"), v.literal("game"), v.literal("mandatory")),
     order: v.number(),
     published: v.boolean(),
   }).index("by_track", ["trackId"]),
