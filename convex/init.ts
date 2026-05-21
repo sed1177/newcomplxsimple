@@ -133,45 +133,47 @@ export const addHardwareCrossword = mutation({
       .query("lessons")
       .withIndex("by_track", (q) => q.eq("trackId", track._id))
       .collect();
-    if (existing.some((l) => l.title === "Hardware Crossword Challenge")) return;
 
     const maxOrder = existing.reduce((m, l) => Math.max(m, l.order), 0);
 
-    await ctx.db.insert("lessons", {
-      trackId: track._id,
-      title: "Hardware Crossword Challenge",
-      type: "content",
-      order: maxOrder + 1,
-      published: true,
-      content: JSON.stringify({
-        blocks: [
-          {
-            type: "heading",
-            content: "Hardware Fundamentals Crossword",
-          },
-          {
-            type: "paragraph",
-            content:
-              "Use the clues below to fill in the crossword. Click a cell to select it, type your answer, and press Submit when done. This activity is graded — you only get one attempt, so read carefully!",
-          },
-          {
-            type: "crossword",
-            pairs: [
-              { term: "CPU",   definition: "The brain of the computer — executes all instructions" },
-              { term: "GPU",   definition: "Handles graphics rendering and display output" },
-              { term: "RAM",   definition: "Fast temporary memory used while programs are running" },
-              { term: "ROM",   definition: "Read-only memory that permanently stores firmware" },
-              { term: "PSU",   definition: "Converts AC electricity to DC power for all components" },
-              { term: "SSD",   definition: "Solid-state storage drive with no moving parts" },
-              { term: "PORT",  definition: "A physical connector on a computer for external devices" },
-              { term: "CORE",  definition: "An independent processing unit inside a CPU" },
-              { term: "CACHE", definition: "Ultra-fast memory built directly inside the CPU chip" },
-              { term: "BIOS",  definition: "Firmware that initialises hardware and boots the OS" },
-            ],
-          },
-        ],
-      }),
+    const crosswordContent = JSON.stringify({
+      blocks: [
+        {
+          type: "heading",
+          content: "Hardware Fundamentals Crossword",
+        },
+        {
+          type: "paragraph",
+          content:
+            "Five advanced hardware terms are hidden in this grid. Click a clue or a cell to start typing — each clue shows the letter count in parentheses. Submit when you're done. You can retry as many times as you need!",
+        },
+        {
+          type: "crossword",
+          pairs: [
+            { term: "MOTHERBOARD", definition: "The main circuit board that connects every component in the PC" },
+            { term: "PROCESSOR",   definition: "Another name for the CPU — the chip that executes all instructions" },
+            { term: "HEATSINK",    definition: "A metal block that draws heat away from the CPU to prevent overheating" },
+            { term: "FIRMWARE",    definition: "Low-level software permanently stored in a chip (e.g. BIOS/UEFI)" },
+            { term: "BANDWIDTH",   definition: "The maximum amount of data that can transfer per second on a bus" },
+          ],
+        },
+      ],
     });
+
+    // Update if already exists, otherwise insert
+    const existing_crossword = existing.find((l) => l.title === "Hardware Crossword Challenge");
+    if (existing_crossword) {
+      await ctx.db.patch(existing_crossword._id, { content: crosswordContent });
+    } else {
+      await ctx.db.insert("lessons", {
+        trackId: track._id,
+        title: "Hardware Crossword Challenge",
+        type: "content",
+        order: maxOrder + 1,
+        published: true,
+        content: crosswordContent,
+      });
+    }
   },
 });
 
