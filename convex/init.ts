@@ -178,6 +178,62 @@ export const addHardwareCrossword = mutation({
 });
 
 /**
+ * Adds the AI Fundamentals crossword lesson if it doesn't already exist.
+ */
+export const addAICrossword = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const track = await ctx.db
+      .query("tracks")
+      .withIndex("by_slug", (q) => q.eq("slug", "ai"))
+      .unique();
+    if (!track) return;
+
+    const existing = await ctx.db
+      .query("lessons")
+      .withIndex("by_track", (q) => q.eq("trackId", track._id))
+      .collect();
+
+    const maxOrder = existing.reduce((m, l) => Math.max(m, l.order), 0);
+
+    const crosswordContent = JSON.stringify({
+      blocks: [
+        { type: "heading", content: "AI Fundamentals Crossword" },
+        {
+          type: "paragraph",
+          content:
+            "Five core AI concepts are hidden in this grid. Each clue shows the letter count. Click a cell or a clue to start — you can retry as many times as you need!",
+        },
+        {
+          type: "crossword",
+          pairs: [
+            { term: "ALGORITHM",  definition: "A step-by-step set of rules a computer follows to solve a problem" },
+            { term: "TRAINING",   definition: "The process of feeding data to a model so it can learn patterns" },
+            { term: "NEURAL",     definition: "___ network — a system loosely modelled on the human brain" },
+            { term: "INFERENCE",  definition: "Using a trained model to make predictions on new data" },
+            { term: "GRADIENT",   definition: "___ descent — the optimisation technique used to train most AI models" },
+          ],
+        },
+      ],
+    });
+
+    const existing_crossword = existing.find((l) => l.title === "AI Concepts Crossword Challenge");
+    if (existing_crossword) {
+      await ctx.db.patch(existing_crossword._id, { content: crosswordContent });
+    } else {
+      await ctx.db.insert("lessons", {
+        trackId: track._id,
+        title: "AI Concepts Crossword Challenge",
+        type: "content",
+        order: maxOrder + 1,
+        published: true,
+        content: crosswordContent,
+      });
+    }
+  },
+});
+
+/**
  * Adds the Linux Mastery track if it doesn't exist yet.
  * Safe to call multiple times — exits immediately if the track already exists.
  */

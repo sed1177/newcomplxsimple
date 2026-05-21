@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Lock } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { LessonRenderer } from "@/components/learn/LessonRenderer";
 import { QuizQuestion } from "@/components/learn/QuizQuestion";
 import { PcPartsGame } from "@/components/game/PcPartsGame";
@@ -46,11 +46,7 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
   const isLegacyQuiz = lesson.type === "quiz";
   const isLegacyGame = lesson.type === "game";
 
-  // A graded lesson is locked once completed — no redo
   const alreadyCompleted = bestAttempt !== undefined && bestAttempt !== null;
-  const lockedPct = alreadyCompleted
-    ? Math.round((bestAttempt.score / bestAttempt.maxScore) * 100)
-    : 0;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
@@ -74,29 +70,8 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
         <h1 className="text-3xl font-black" style={{ color: "var(--text)" }}>{lesson.title}</h1>
       </div>
 
-      {/* Locked state for quiz / game — already submitted */}
-      {alreadyCompleted && (isLegacyQuiz || isLegacyGame) && (
-        <div className="card p-8 mb-6 text-center">
-          <div className="text-5xl mb-3">{lockedPct >= 80 ? "🏆" : lockedPct >= 60 ? "⭐" : "📚"}</div>
-          <p className="text-4xl font-black gradient-text mb-1">{lockedPct}%</p>
-          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-            {lockedPct >= 80 ? "Excellent work!" : lockedPct >= 60 ? "Good job!" : "Keep practicing!"}
-          </p>
-          <div className="flex items-center justify-center gap-2 text-sm font-medium mb-5" style={{ color: "var(--text-muted)" }}>
-            <Lock size={14} /> This graded activity has been submitted and is locked.
-          </div>
-          <Link
-            href={`/learn/${slug}`}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #2563EB, #F97316)" }}
-          >
-            <BookOpen size={13} /> Back to Track
-          </Link>
-        </div>
-      )}
-
       {/* Results banner (shown right after completing this session) */}
-      {result && !alreadyCompleted && (
+      {result && (
         <div className="card p-6 mb-6 text-center">
           <div className="text-5xl mb-3">{pct >= 80 ? "🏆" : pct >= 60 ? "⭐" : "📚"}</div>
           <p className="text-4xl font-black gradient-text mb-1">{pct}%</p>
@@ -113,15 +88,14 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
         </div>
       )}
 
-      {/* Main lesson content — hidden once result is shown or lesson is locked */}
-      {!result && !(alreadyCompleted && (isLegacyQuiz || isLegacyGame)) && (
+      {/* Main lesson content */}
+      {!result && (
         <div className="card p-8 mb-6">
           {/* Content + block-based lessons (crossword, quiz blocks, etc.) */}
           {!isLegacyQuiz && !isLegacyGame && (
             <LessonRenderer
               contentJson={lesson.content}
               onComplete={handleComplete}
-              locked={alreadyCompleted}
             />
           )}
 
