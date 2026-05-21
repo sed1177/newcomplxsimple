@@ -62,19 +62,20 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const profile = useQuery(api.users.getMyProfile);
 
   useEffect(() => {
-    if (isLoaded && user) {
-      storeUser({
-        clerkId: user.id,
-        email: user.emailAddresses[0]?.emailAddress ?? "",
-        name: user.fullName ?? user.firstName ?? "Student",
-        imageUrl: user.imageUrl,
-      });
-      ensureSeeded();
-      addLinuxTrack();
-      addHardwareCrossword();
-      addAICrossword();
-    }
-  }, [isLoaded, user, storeUser, ensureSeeded, addLinuxTrack, addHardwareCrossword, addAICrossword]);
+    if (!isLoaded || !user) return;
+    storeUser({
+      clerkId: user.id,
+      email: user.emailAddresses[0]?.emailAddress ?? "",
+      name: user.fullName ?? user.firstName ?? "Student",
+      imageUrl: user.imageUrl,
+    });
+    // Idempotent seed mutations — safe to call on every mount
+    void ensureSeeded();
+    void addLinuxTrack();
+    void addHardwareCrossword();
+    void addAICrossword();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, user?.id]);
 
   // Gate: Clerk not loaded yet
   if (!isLoaded) {

@@ -62,8 +62,8 @@ export default function LessonPage({ params }: { params: Promise<{ track: string
             {lesson.type}
           </span>
           {alreadyCompleted && (
-            <span className="flex items-center gap-1 text-xs px-3 py-1 rounded-full font-medium" style={{ background: "#0EA5E922", color: "#0EA5E9" }}>
-              <Lock size={10} /> Completed · {lockedPct}%
+            <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: "#0EA5E922", color: "#0EA5E9" }}>
+              Best: {Math.round((bestAttempt!.score / bestAttempt!.maxScore) * 100)}%
             </span>
           )}
         </div>
