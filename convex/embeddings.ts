@@ -3,8 +3,9 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_URL = "https://api.openai.com/v1/embeddings";
+const EMBEDDING_MODEL = "jina-embeddings-v3";
+const EMBEDDING_URL = "https://api.jina.ai/v1/embeddings";
+const EMBEDDING_DIMENSIONS = 1024;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -54,10 +55,10 @@ function lessonContentToText(content: string): string {
   }
 }
 
-/** Calls OpenAI's embedding endpoint for a batch of input strings. */
+/** Calls Jina AI's embedding endpoint for a batch of document strings. */
 async function embedBatch(inputs: string[]): Promise<number[][]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set in Convex environment variables");
+  const apiKey = process.env.JINA_API_KEY;
+  if (!apiKey) throw new Error("JINA_API_KEY is not set in Convex environment variables");
 
   const res = await fetch(EMBEDDING_URL, {
     method: "POST",
@@ -65,12 +66,17 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: inputs }),
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      task: "retrieval.passage",   // optimized for documents being stored
+      dimensions: EMBEDDING_DIMENSIONS,
+      input: inputs,
+    }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenAI embeddings error (${res.status}): ${text}`);
+    throw new Error(`Jina embeddings error (${res.status}): ${text}`);
   }
 
   const json = await res.json();

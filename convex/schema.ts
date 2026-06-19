@@ -62,7 +62,7 @@ export default defineSchema({
     .index("by_source", ["source"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
-      dimensions: 1536,       // text-embedding-3-small
+      dimensions: 1024,       // jina-embeddings-v3
     }),
 
   attempts: defineTable({

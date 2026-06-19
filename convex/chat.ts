@@ -3,8 +3,9 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_URL = "https://api.openai.com/v1/embeddings";
+const EMBEDDING_MODEL = "jina-embeddings-v3";
+const EMBEDDING_URL = "https://api.jina.ai/v1/embeddings";
+const EMBEDDING_DIMENSIONS = 1024;
 
 // Primary: Groq (free, fast). Fallback automatically to OpenAI if Groq fails.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -26,13 +27,18 @@ Rules:
 // ── Embed a single query string ─────────────────────────────────────────────
 
 async function embedQuery(text: string): Promise<number[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+  const apiKey = process.env.JINA_API_KEY;
+  if (!apiKey) throw new Error("JINA_API_KEY is not set");
 
   const res = await fetch(EMBEDDING_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      task: "retrieval.query",   // optimized for search queries
+      dimensions: EMBEDDING_DIMENSIONS,
+      input: [text],
+    }),
   });
   if (!res.ok) throw new Error(`Embedding failed (${res.status}): ${await res.text()}`);
   const json = await res.json();
