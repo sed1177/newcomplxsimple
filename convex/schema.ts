@@ -130,4 +130,22 @@ export default defineSchema({
   })
     .index("by_created_by", ["createdBy"])
     .index("by_due_date", ["dueDate"]),
+
+  // Stark chatbot: saved conversations
+  starkConversations: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_updated", ["userId", "updatedAt"]),
+
+  starkMessages: defineTable({
+    conversationId: v.id("starkConversations"),
+    userId: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    createdAt: v.number(),
+  }).index("by_conversation", ["conversationId"]),
 });

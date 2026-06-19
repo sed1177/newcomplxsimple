@@ -1,5 +1,5 @@
 import { action, internalQuery } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
@@ -99,27 +99,29 @@ export const getChunksByIds = internalQuery({
 
 export const sendMessage = action({
   args: {
-    messages: v.array(
+    conversationId: v.optional(v.id("starkConversations")),
+    userText: v.string(),
+    // full history to pass to LLM (does NOT need to be persisted again here)
+    history: v.array(
       v.object({
         role: v.union(v.literal("user"), v.literal("assistant")),
         content: v.string(),
       })
     ),
   },
-  handler: async (ctx, args): Promise<string> => {
-    const lastUser = [...args.messages].reverse().find((m) => m.role === "user");
-    if (!lastUser) return "Ask me anything about ComplxSimple!";
+  handler: async (ctx, args): Promise<{ reply: string; conversationId: Id<"starkConversations"> }> => {
+    const { userText, history } = args;
 
     // 1. Embed the question
-    const queryVector = await embedQuery(lastUser.content);
+    const queryVector = await embedQuery(userText);
 
-    // 2. Vector search for the most relevant course chunks
+    // 2. Vector search
     const results = await ctx.vectorSearch("lessonEmbeddings", "by_embedding", {
       vector: queryVector,
       limit: 6,
     });
 
-    // 3. Fetch the chunk text for those matches
+    // 3. Fetch chunk text
     const chunks = await ctx.runQuery(internal.chat.getChunksByIds, {
       ids: results.map((r) => r._id as Id<"lessonEmbeddings">),
     });
@@ -128,16 +130,35 @@ export const sendMessage = action({
       ? chunks.map((c, i) => `[${i + 1}] ${c.title}\n${c.chunkText}`).join("\n\n")
       : "No course content has been indexed yet.";
 
-    // 4. Build the message list with retrieved context
+    // 4. Build prompt
     const systemPrompt = `${SYSTEM_PERSONA}\n\n=== COURSE CONTEXT ===\n${context}\n=== END CONTEXT ===`;
-
-    const messages: ChatMessage[] = [
+    const llmMessages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
-      // Keep the last ~8 turns of conversation for continuity
-      ...args.messages.slice(-8).map((m) => ({ role: m.role, content: m.content })),
+      ...history.slice(-8).map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: userText },
     ];
 
-    // 5. Generate the answer (Groq → OpenAI fallback)
-    return await chatComplete(messages);
+    // 5. Generate reply
+    const reply = await chatComplete(llmMessages);
+
+    // 6. Persist to DB
+    let convId = args.conversationId;
+    if (!convId) {
+      // Create a new conversation titled with the first ~55 chars of the message
+      const title = userText.slice(0, 55) + (userText.length > 55 ? "…" : "");
+      convId = await ctx.runMutation(api.conversations.create, { title });
+    }
+    await ctx.runMutation(api.conversations.addMessage, {
+      conversationId: convId,
+      role: "user",
+      content: userText,
+    });
+    await ctx.runMutation(api.conversations.addMessage, {
+      conversationId: convId,
+      role: "assistant",
+      content: reply,
+    });
+
+    return { reply, conversationId: convId };
   },
 });
