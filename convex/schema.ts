@@ -49,6 +49,22 @@ export default defineSchema({
     order: v.number(),
   }).index("by_lesson", ["lessonId"]),
 
+  // RAG: embedded chunks of course content for Stark's vector search
+  lessonEmbeddings: defineTable({
+    lessonId: v.optional(v.id("lessons")),
+    trackId: v.optional(v.id("tracks")),
+    source: v.string(),       // "lesson" | "track" | "faq"
+    title: v.string(),        // human-readable label for the chunk
+    chunkText: v.string(),    // the text that was embedded
+    embedding: v.array(v.float64()),
+  })
+    .index("by_lesson", ["lessonId"])
+    .index("by_source", ["source"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536,       // text-embedding-3-small
+    }),
+
   attempts: defineTable({
     userId: v.id("users"),
     lessonId: v.id("lessons"),

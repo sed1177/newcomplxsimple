@@ -1,0 +1,235 @@
+import { action, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { v } from "convex/values";
+import { Doc } from "./_generated/dataModel";
+
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_URL = "https://api.openai.com/v1/embeddings";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Flattens a lesson's block-based JSON content into plain readable text. */
+function lessonContentToText(content: string): string {
+  try {
+    const parsed = JSON.parse(content);
+    const blocks = Array.isArray(parsed.blocks) ? parsed.blocks : [];
+    const parts: string[] = [];
+    for (const b of blocks) {
+      switch (b.type) {
+        case "heading":
+        case "paragraph":
+        case "code":
+        case "list":
+          if (b.content) parts.push(String(b.content));
+          break;
+        case "flashcard":
+          if (b.front || b.back) parts.push(`${b.front}: ${b.back}`);
+          break;
+        case "fillblank":
+          if (b.prompt) parts.push(`Fill in the blank: ${b.prompt}`);
+          break;
+        case "quiz":
+          if (b.question) {
+            const opts = Array.isArray(b.options) ? b.options.join(", ") : "";
+            const answer = Array.isArray(b.options) ? b.options[b.correctIndex] : "";
+            parts.push(`Quiz: ${b.question} Options: ${opts}. Correct answer: ${answer}.${b.explanation ? " " + b.explanation : ""}`);
+          }
+          break;
+        case "match":
+        case "crossword":
+          if (Array.isArray(b.pairs)) {
+            parts.push(
+              b.pairs.map((p: { term: string; definition: string }) => `${p.term} = ${p.definition}`).join("; ")
+            );
+          }
+          break;
+        case "playground":
+          if (b.code) parts.push(`Code example (${b.language}):\n${b.code}`);
+          break;
+      }
+    }
+    return parts.join("\n");
+  } catch {
+    return content;
+  }
+}
+
+/** Calls OpenAI's embedding endpoint for a batch of input strings. */
+async function embedBatch(inputs: string[]): Promise<number[][]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set in Convex environment variables");
+
+  const res = await fetch(EMBEDDING_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input: inputs }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenAI embeddings error (${res.status}): ${text}`);
+  }
+
+  const json = await res.json();
+  return json.data.map((d: { embedding: number[] }) => d.embedding);
+}
+
+// ── Internal DB helpers (actions can't touch the DB directly) ───────────────
+
+export const getAllContent = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const tracks = await ctx.db.query("tracks").collect();
+    const lessons = await ctx.db.query("lessons").collect();
+    const questions = await ctx.db.query("quizQuestions").collect();
+    return { tracks, lessons, questions };
+  },
+});
+
+export const clearEmbeddings = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("lessonEmbeddings").collect();
+    await Promise.all(all.map((e) => ctx.db.delete(e._id)));
+  },
+});
+
+export const insertEmbedding = internalMutation({
+  args: {
+    lessonId: v.optional(v.id("lessons")),
+    trackId: v.optional(v.id("tracks")),
+    source: v.string(),
+    title: v.string(),
+    chunkText: v.string(),
+    embedding: v.array(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("lessonEmbeddings", args);
+  },
+});
+
+// ── Public action: (re)build the entire embedding index ─────────────────────
+
+export const generateAllEmbeddings = action({
+  args: {},
+  handler: async (ctx): Promise<{ embedded: number }> => {
+    const { tracks, lessons, questions } = await ctx.runQuery(
+      internal.embeddings.getAllContent,
+      {}
+    );
+
+    // Build a flat list of chunks to embed
+    type Chunk = {
+      lessonId?: Doc<"lessons">["_id"];
+      trackId?: Doc<"tracks">["_id"];
+      source: string;
+      title: string;
+      chunkText: string;
+    };
+    const chunks: Chunk[] = [];
+
+    // Track-level chunks
+    for (const t of tracks) {
+      chunks.push({
+        trackId: t._id,
+        source: "track",
+        title: `Track: ${t.name}`,
+        chunkText: `Track "${t.name}" (${t.slug}). ${t.description}`,
+      });
+    }
+
+    // Lesson-level chunks (with their quiz questions appended)
+    for (const l of lessons) {
+      const track = tracks.find((t) => t._id === l.trackId);
+      const lessonQuestions = questions.filter((q) => q.lessonId === l._id);
+      const qText = lessonQuestions
+        .map((q) => {
+          const answer = q.options[q.correctIndex];
+          return `Q: ${q.question} A: ${answer}.${q.explanation ? " " + q.explanation : ""}`;
+        })
+        .join("\n");
+
+      const body = lessonContentToText(l.content);
+      const chunkText = [
+        `Track: ${track?.name ?? "Unknown"}`,
+        `Lesson: ${l.title}`,
+        `Type: ${l.type === "mandatory" ? "Mandatory Work (graded crossword)" : l.type}`,
+        body,
+        qText,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      chunks.push({
+        lessonId: l._id,
+        trackId: l.trackId,
+        source: "lesson",
+        title: `${track?.name ?? ""} — ${l.title}`,
+        chunkText,
+      });
+    }
+
+    // Static platform FAQ chunks so Stark knows how the SITE works
+    const FAQ: Array<{ title: string; text: string }> = [
+      {
+        title: "About ComplxSimple",
+        text: "ComplxSimple is an interactive tech learning platform created by Cassandra Carter. It teaches Hardware, AI, Cybersecurity, HTML, and Linux through lessons, quizzes, games, and crosswords.",
+      },
+      {
+        title: "How learning works",
+        text: "Students pick a track on the Learn page, then complete lessons in order. Lessons can be reading content, quizzes, interactive games, or Mandatory Work crosswords. Each completed lesson earns XP and counts toward track progress.",
+      },
+      {
+        title: "Mandatory Work / Crosswords",
+        text: "Each track has a Mandatory Work crossword challenge. Students fill in tech terms using the clues. Correct words automatically turn green and lock in place. Students can retry as many times as they want. Scores are recorded for the teacher.",
+      },
+      {
+        title: "Homework and assignments",
+        text: "Teachers assign homework with due dates on the Teacher Hub. Students see their homework status (pending, complete, or late) on the Homework page. Homework is tied to a track and counts as complete when the student completes work in that track before the due date.",
+      },
+      {
+        title: "Teacher feedback",
+        text: "Cassandra can send students feedback, notices, and warnings. These appear in the student's feedback inbox on the dashboard. Warnings show as a banner and must be acknowledged.",
+      },
+      {
+        title: "Watch Party",
+        text: "The Learn page has a Watch Party section (coming soon) where the class can watch tech content together and discuss in real time with Cassandra and classmates.",
+      },
+      {
+        title: "Who is Cassandra Carter",
+        text: "Cassandra Carter is the instructor and creator of ComplxSimple. She mentors students in IT and tech careers. Students can contact her through the platform for help.",
+      },
+    ];
+    for (const f of FAQ) {
+      chunks.push({ source: "faq", title: f.title, chunkText: `${f.title}. ${f.text}` });
+    }
+
+    // Embed in batches of 64, then store
+    await ctx.runMutation(internal.embeddings.clearEmbeddings, {});
+
+    const BATCH = 64;
+    let embedded = 0;
+    for (let i = 0; i < chunks.length; i += BATCH) {
+      const batch = chunks.slice(i, i + BATCH);
+      const vectors = await embedBatch(batch.map((c) => c.chunkText));
+      await Promise.all(
+        batch.map((c, j) =>
+          ctx.runMutation(internal.embeddings.insertEmbedding, {
+            lessonId: c.lessonId,
+            trackId: c.trackId,
+            source: c.source,
+            title: c.title,
+            chunkText: c.chunkText,
+            embedding: vectors[j],
+          })
+        )
+      );
+      embedded += batch.length;
+    }
+
+    return { embedded };
+  },
+});
